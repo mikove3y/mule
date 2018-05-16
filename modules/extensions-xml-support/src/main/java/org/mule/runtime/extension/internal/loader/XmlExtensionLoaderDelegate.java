@@ -941,5 +941,11 @@ public final class XmlExtensionLoaderDelegate {
     public Object resolvePlaceholderKeyValue(String placeholderKey) {
       return placeholderKey;
     }
+
+    @Override
+    public Optional<ConfigurationProperty> getConfigurationProperty(String key) {
+      return of(new DefaultConfigurationProperty(key, key, key));
+    }
+
   }
 }

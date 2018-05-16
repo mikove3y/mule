@@ -37,6 +37,7 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
 
   private static final String FIXED_VALUE = "fixedValue";
   private static final String CHILD_RESOLVER_DESCRIPTION = "child resolver";
+  private static final String OVERRIDE_RESOLVER_DESCRIPTION = "override resolver";
   private static final String PARENT_RESOLVER_DESCRIPTION = "parent resolver";
   private DefaultConfigurationPropertiesResolver resolver;
 
@@ -49,6 +50,8 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
         new DefaultConfigurationPropertiesResolver(Optional.empty(), new ConfigurationPropertiesProvider() {
 
           private List<ConfigurationProperty> attributes = ImmutableList.<ConfigurationProperty>builder()
+              .add(new DefaultConfigurationProperty(this, "same-key", "parent-value1-${same-key2}"))
+              .add(new DefaultConfigurationProperty(this, "same-key2", "parent-value2"))
               .add(new DefaultConfigurationProperty(this, "parent-key1", "parent-value1"))
               .add(new DefaultConfigurationProperty(this, "parent-key2", "parent-value2"))
               .add(new DefaultConfigurationProperty(this, "parent-complex-key1", "parent-complex-${parent-key1}"))
@@ -67,15 +70,38 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
             return PARENT_RESOLVER_DESCRIPTION;
           }
         });
-    resolver = new DefaultConfigurationPropertiesResolver(Optional.of(parentResolver), new ConfigurationPropertiesProvider() {
+    DefaultConfigurationPropertiesResolver childResolver =
+        new DefaultConfigurationPropertiesResolver(Optional.of(parentResolver), new ConfigurationPropertiesProvider() {
+
+          private List<ConfigurationProperty> attributes = ImmutableList.<ConfigurationProperty>builder()
+              .add(new DefaultConfigurationProperty(this, "same-key", "child-value1-${same-key2}"))
+              .add(new DefaultConfigurationProperty(this, "same-key2", "child-value2"))
+              .add(new DefaultConfigurationProperty(this, "child-key1", "child-value1"))
+              .add(new DefaultConfigurationProperty(this, "child-key2", "child-value2"))
+              .add(new DefaultConfigurationProperty(this, "child-complex-key1", "${child-key1}-${parent-complex-key1}"))
+              .add(new DefaultConfigurationProperty(this, "child-complex-key2",
+                                                    "${child-key1}-${parent-complex-key2}-${child-key2}"))
+              .add(new DefaultConfigurationProperty(this, "unresolved-nested-key", "${child-key1}-${child-key3}"))
+              .add(new DefaultConfigurationProperty(this, "invalid-key1", "${nonExistentKey}"))
+              .build();
+
+          @Override
+          public Optional<ConfigurationProperty> getConfigurationProperty(String configurationAttributeKey) {
+            return attributes.stream().filter(cf -> cf.getKey().equals(configurationAttributeKey)).findFirst();
+          }
+
+          @Override
+          public String getDescription() {
+            return CHILD_RESOLVER_DESCRIPTION;
+          }
+
+        });
+
+    resolver = new DefaultConfigurationPropertiesResolver(Optional.of(childResolver), new ConfigurationPropertiesProvider() {
 
       private List<ConfigurationProperty> attributes = ImmutableList.<ConfigurationProperty>builder()
-          .add(new DefaultConfigurationProperty(this, "child-key1", "child-value1"))
-          .add(new DefaultConfigurationProperty(this, "child-key2", "child-value2"))
-          .add(new DefaultConfigurationProperty(this, "child-complex-key1", "${child-key1}-${parent-complex-key1}"))
-          .add(new DefaultConfigurationProperty(this, "child-complex-key2", "${child-key1}-${parent-complex-key2}-${child-key2}"))
-          .add(new DefaultConfigurationProperty(this, "unresolved-nested-key", "${child-key1}-${child-key3}"))
-          .add(new DefaultConfigurationProperty(this, "invalid-key1", "${nonExistentKey}"))
+          .add(new DefaultConfigurationProperty(this, "override-key", "override-key-value1"))
+          .add(new DefaultConfigurationProperty(this, "child-key1", "override-value1"))
           .build();
 
       @Override
@@ -85,8 +111,9 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
 
       @Override
       public String getDescription() {
-        return CHILD_RESOLVER_DESCRIPTION;
+        return OVERRIDE_RESOLVER_DESCRIPTION;
       }
+
     });
   }
 
@@ -107,7 +134,7 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
 
   @Test
   public void resolveKeyInChild() {
-    assertThat(resolver.resolveValue("${child-key1}"), is("child-value1"));
+    assertThat(resolver.resolveValue("${child-key2}"), is("child-value2"));
   }
 
   @Test
@@ -117,32 +144,35 @@ public class PropertiesResolverConfigurationPropertiesResolverTestCase extends A
 
   @Test
   public void resolveChildComplexKey() {
-    assertThat(resolver.resolveValue("${child-complex-key1}"), is("child-value1-parent-complex-parent-value1"));
+    assertThat(resolver.resolveValue("${child-complex-key1}"), is("override-value1-parent-complex-parent-value1"));
+  }
+
+  @Test
+  public void sameKeyDeclaredOnChildAndParent() {
+    assertThat(resolver.resolveValue("${same-key}"), is("child-value1-child-value2"));
   }
 
   @Test
   public void resolveKeyWithServeralLevelsOfIndirection() {
-    assertThat(resolver.resolveValue("${child-complex-key2}"), is("child-value1-parent-value1-parent-value2-child-value2"));
+    assertThat(resolver.resolveValue("${child-complex-key2}"), is("override-value1-parent-value1-parent-value2-child-value2"));
   }
 
   @Test
-  public void parentKeyCannotReferenceChildKey() {
-    expectedException
-        .expectMessage(is("Couldn't find configuration property value for key ${child-key1} from properties provider parent resolver - within resolver child resolver trying to process key parent-key-referencing-child"));
-    resolver.resolveValue("${parent-key-referencing-child}");
+  public void parentKeyCanReferenceChildKey() {
+    assertThat(resolver.resolveValue("${parent-key-referencing-child}"), is("override-value1"));
   }
 
   @Test
-  public void resolveInvalidKey() {
+  public void resolveInvalidValuePlaceHolder() {
     expectedException
-        .expectMessage(is("Couldn't find configuration property value for key ${nonExistentKey} from properties provider parent resolver - within resolver child resolver trying to process key nonExistentKey"));
+        .expectMessage(is("Couldn't find configuration property value for key ${nonExistentKey} from properties provider parent resolver - within resolver child resolver trying to process key nonExistentKey - within resolver override resolver trying to process key nonExistentKey"));
     resolver.resolveValue("${invalid-key1}");
   }
 
   @Test
   public void unresolvedNestedKey() {
     expectedException
-        .expectMessage(is("Couldn't find configuration property value for key ${child-key3} from properties provider parent resolver - within resolver child resolver trying to process key child-key3"));
+        .expectMessage(is("Couldn't find configuration property value for key ${child-key3} from properties provider parent resolver - within resolver child resolver trying to process key child-key3 - within resolver override resolver trying to process key child-key3"));
     resolver.resolveValue("${unresolved-nested-key}");
   }
 

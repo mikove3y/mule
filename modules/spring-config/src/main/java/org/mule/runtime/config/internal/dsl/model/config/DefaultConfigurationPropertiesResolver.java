@@ -68,14 +68,15 @@ public class DefaultConfigurationPropertiesResolver implements ConfigurationProp
   }
 
   /**
-   * Resolves the possible value of a placeholder key.
+   * Resolves the possible value of a placeholder key. Looks first for the {@link ConfigurationProperty} in the whole
+   * hierarchy and if the value is another placeholder key it will try to resolve it first before going to the parent.
+   * This allows to override properties from a child resolver that can also override values defined as placeholder keys.
    * 
    * @param placeholderKey the placeholder key which value needs to be resolved.
    * @return the resolved value.
    */
   public Object resolvePlaceholderKeyValue(final String placeholderKey) {
-    Optional<ConfigurationProperty> foundValueOptional =
-        configurationPropertiesProvider.getConfigurationProperty(placeholderKey);
+    Optional<ConfigurationProperty> foundValueOptional = getConfigurationProperty(placeholderKey);
     // verify that the provided value is not the same as the placeholder key searched for. If that's the case jump to parent.
     if (foundValueOptional.isPresent()
         && !foundValueOptional.get().getRawValue().equals(PLACEHOLDER_PREFIX + placeholderKey + PLACEHOLDER_SUFFIX)) {
@@ -92,6 +93,15 @@ public class DefaultConfigurationPropertiesResolver implements ConfigurationProp
       }
     }
     throw new PropertyNotFoundException(new Pair<>(configurationPropertiesProvider.getDescription(), placeholderKey));
+  }
+
+  public Optional<ConfigurationProperty> getConfigurationProperty(String placeholderKey) {
+    Optional<ConfigurationProperty> foundConfigurationPropertyOptional =
+        configurationPropertiesProvider.getConfigurationProperty(placeholderKey);
+    if (!foundConfigurationPropertyOptional.isPresent() && parentResolver.isPresent()) {
+      return parentResolver.get().getConfigurationProperty(placeholderKey);
+    }
+    return foundConfigurationPropertyOptional;
   }
 
   private Object replaceAllPlaceholders(String value) {

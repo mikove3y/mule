@@ -392,13 +392,6 @@ public class ApplicationModel {
     FileConfigurationPropertiesProvider externalPropertiesConfigurationProvider =
         new FileConfigurationPropertiesProvider(externalResourceProvider, "External files");
 
-    ConfigurationPropertiesProvider deploymentPropertiesConfigurationProperties = null;
-    if (!deploymentProperties.isEmpty()) {
-      deploymentPropertiesConfigurationProperties =
-          new MapConfigurationPropertiesProvider(deploymentProperties,
-                                                 "Deployment properties");
-    }
-
     Optional<ConfigurationPropertiesResolver> parentConfigurationPropertiesResolver = of(localResolver);
     if (parentConfigurationProperties.isPresent()) {
       parentConfigurationPropertiesResolver =
@@ -421,14 +414,9 @@ public class ApplicationModel {
     if (!configConfigurationPropertiesProviders.isEmpty()) {
       CompositeConfigurationPropertiesProvider configurationAttributesProvider =
           new CompositeConfigurationPropertiesProvider(configConfigurationPropertiesProviders);
-      parentConfigurationPropertiesResolver = of(new DefaultConfigurationPropertiesResolver(
-                                                                                            deploymentPropertiesConfigurationProperties != null
-                                                                                                ?
-                                                                                                // deployment properties provider has to go as parent here so we can reference them from configuration properties files
-                                                                                                of(new DefaultConfigurationPropertiesResolver(parentConfigurationPropertiesResolver,
-                                                                                                                                              deploymentPropertiesConfigurationProperties))
-                                                                                                : parentConfigurationPropertiesResolver,
+      parentConfigurationPropertiesResolver = of(new DefaultConfigurationPropertiesResolver(parentConfigurationPropertiesResolver,
                                                                                             configurationAttributesProvider));
+
     }
     DefaultConfigurationPropertiesResolver globalPropertiesConfigurationPropertiesResolver =
         new DefaultConfigurationPropertiesResolver(parentConfigurationPropertiesResolver,
@@ -436,22 +424,16 @@ public class ApplicationModel {
     DefaultConfigurationPropertiesResolver systemPropertiesResolver =
         new DefaultConfigurationPropertiesResolver(of(globalPropertiesConfigurationPropertiesResolver),
                                                    environmentPropertiesConfigurationProvider);
-
     DefaultConfigurationPropertiesResolver externalPropertiesResolver =
-        new DefaultConfigurationPropertiesResolver(
-                                                   deploymentPropertiesConfigurationProperties != null ?
-                                                   // deployment properties provider has to go as parent here so we can reference them from external files
-                                                       of(new DefaultConfigurationPropertiesResolver(of(systemPropertiesResolver),
-                                                                                                     deploymentPropertiesConfigurationProperties))
-                                                       : of(systemPropertiesResolver),
+        new DefaultConfigurationPropertiesResolver(of(systemPropertiesResolver),
                                                    externalPropertiesConfigurationProvider);
-    if (deploymentPropertiesConfigurationProperties == null) {
+    if (deploymentProperties.isEmpty()) {
       this.configurationProperties = new PropertiesResolverConfigurationProperties(externalPropertiesResolver);
     } else {
-      // finally the first configuration properties resolver should be deployment properties as they have precedence over the rest
       this.configurationProperties =
           new PropertiesResolverConfigurationProperties(new DefaultConfigurationPropertiesResolver(of(externalPropertiesResolver),
-                                                                                                   deploymentPropertiesConfigurationProperties));
+                                                                                                   new MapConfigurationPropertiesProvider(deploymentProperties,
+                                                                                                                                          "Deployment properties")));
     }
   }
 

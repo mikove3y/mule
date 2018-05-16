@@ -6,29 +6,35 @@
  */
 package org.mule.runtime.config.internal.dsl.model.extension.xml;
 
-import org.custommonkey.xmlunit.DetailedDiff;
-import org.custommonkey.xmlunit.Diff;
-import org.custommonkey.xmlunit.Difference;
-import org.custommonkey.xmlunit.XMLUnit;
-import org.junit.Test;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Collections.emptySet;
+import static java.util.Optional.of;
+import static org.apache.commons.io.IOUtils.toInputStream;
+import static org.custommonkey.xmlunit.XMLUnit.setIgnoreAttributeOrder;
+import static org.custommonkey.xmlunit.XMLUnit.setIgnoreComments;
+import static org.custommonkey.xmlunit.XMLUnit.setIgnoreWhitespace;
+import static org.custommonkey.xmlunit.XMLUnit.setNormalizeWhitespace;
+import static org.mule.runtime.config.api.XmlConfigurationDocumentLoader.noValidationDocumentLoader;
+import static org.mule.runtime.config.internal.dsl.model.extension.xml.ComponentModelReaderHelper.PASSWORD_MASK;
 import org.mule.runtime.config.api.XmlConfigurationDocumentLoader;
+import org.mule.runtime.config.api.dsl.model.properties.ConfigurationProperty;
 import org.mule.runtime.config.api.dsl.processor.ConfigLine;
 import org.mule.runtime.config.api.dsl.processor.xml.XmlApplicationParser;
 import org.mule.runtime.config.internal.dsl.model.ComponentModelReader;
 import org.mule.runtime.config.internal.dsl.model.config.ConfigurationPropertiesResolver;
+import org.mule.runtime.config.internal.dsl.model.config.DefaultConfigurationProperty;
 import org.mule.runtime.config.internal.model.ComponentModel;
-import org.w3c.dom.Document;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.emptySet;
-import static org.apache.commons.io.IOUtils.toInputStream;
-import static org.custommonkey.xmlunit.XMLUnit.*;
-import static org.mule.runtime.config.api.XmlConfigurationDocumentLoader.noValidationDocumentLoader;
-import static org.mule.runtime.config.internal.dsl.model.extension.xml.ComponentModelReaderHelper.PASSWORD_MASK;
+import org.custommonkey.xmlunit.DetailedDiff;
+import org.custommonkey.xmlunit.Diff;
+import org.custommonkey.xmlunit.Difference;
+import org.custommonkey.xmlunit.XMLUnit;
+import org.junit.Test;
+import org.w3c.dom.Document;
 
 
 public class ComponentModelReaderHelperTestCase {
@@ -173,6 +179,12 @@ public class ComponentModelReaderHelperTestCase {
       public Object resolvePlaceholderKeyValue(String placeholderKey) {
         return placeholderKey;
       }
+
+      @Override
+      public Optional<ConfigurationProperty> getConfigurationProperty(String key) {
+        return of(new DefaultConfigurationProperty(key, key, key));
+      }
+
     };
     final ComponentModelReader componentModelReader = new ComponentModelReader(externalPropertiesResolver);
     return componentModelReader.extractComponentDefinitionModel(configLine, filename);

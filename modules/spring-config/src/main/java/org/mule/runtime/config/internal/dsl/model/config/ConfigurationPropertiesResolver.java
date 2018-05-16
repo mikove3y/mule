@@ -6,6 +6,10 @@
  */
 package org.mule.runtime.config.internal.dsl.model.config;
 
+import org.mule.runtime.config.api.dsl.model.properties.ConfigurationProperty;
+
+import java.util.Optional;
+
 public interface ConfigurationPropertiesResolver {
 
   /**
@@ -24,5 +28,11 @@ public interface ConfigurationPropertiesResolver {
    * @return the resolved value.
    */
   Object resolvePlaceholderKeyValue(final String placeholderKey);
+
+  /**
+   * @param key the key of the property.
+   * @return the {@link ConfigurationProperty} associated with the key. May be empty if that key is not present.
+   */
+  Optional<ConfigurationProperty> getConfigurationProperty(String key);
 
 }
